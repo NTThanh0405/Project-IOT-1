@@ -16,13 +16,13 @@ TaskHandle_t TaskPowerManagementHandle;
 Servo myservo;
 
 // Global variables
-const int trig = 5;            // Đã thay đổi để phù hợp với ESP32
-const int echo = 18;           // Đã thay đổi để phù hợp với ESP32
-int tien1 = 25;                // Đã thay đổi để phù hợp với ESP32
-int tien2 = 26;                // Đã thay đổi để phù hợp với ESP32
-int lui1 = 32;                 // Đã thay đổi để phù hợp với ESP32
-int lui2 = 33;                 // Đã thay đổi để phù hợp với ESP32
-int dongcoservo = 13;          // Đã thay đổi để phù hợp với ESP32
+const int trig = 5;            
+const int echo = 18;           
+int tien1 = 25;                
+int tien2 = 26;                
+int lui1 = 32;                 
+int lui2 = 33;                 
+int dongcoservo = 13;          
 int gioihan = 25;              // Khoảng cách nhận biết vật
 int khoangcach = 0;
 int khoangcachtrai = 0;

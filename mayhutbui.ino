@@ -1,8 +1,11 @@
-#include <Arduino_FreeRTOS.h>
-#include <semphr.h>
-#include <Servo.h>
-#include <avr/sleep.h>
-#include <avr/power.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/semphr.h"
+#include <ESP32Servo.h>
+#include "driver/gpio.h"
+#include "driver/adc.h"
+#include "esp_sleep.h"
+#include "esp_pm.h"
 
 // Define task handles
 TaskHandle_t TaskSenseHandle;
@@ -13,14 +16,14 @@ TaskHandle_t TaskPowerManagementHandle;
 Servo myservo;
 
 // Global variables
-const int trig = 6;
-const int echo = 5;
-int tien1 = 10;
-int tien2 = 11;
-int lui1 = 12;
-int lui2 = 13;
-int dongcoservo = 9;
-int gioihan = 25; // Khoảng cách nhận biết vật
+const int trig = 5;            // Đã thay đổi để phù hợp với ESP32
+const int echo = 18;           // Đã thay đổi để phù hợp với ESP32
+int tien1 = 25;                // Đã thay đổi để phù hợp với ESP32
+int tien2 = 26;                // Đã thay đổi để phù hợp với ESP32
+int lui1 = 32;                 // Đã thay đổi để phù hợp với ESP32
+int lui2 = 33;                 // Đã thay đổi để phù hợp với ESP32
+int dongcoservo = 13;          // Đã thay đổi để phù hợp với ESP32
+int gioihan = 25;              // Khoảng cách nhận biết vật
 int khoangcach = 0;
 int khoangcachtrai = 0;
 int khoangcachphai = 0;
@@ -58,8 +61,16 @@ void TaskMovement(void *pvParameters);
 void TaskPowerManagement(void *pvParameters);
 
 void setup() {
+  // Khởi tạo Serial để debug
+  Serial.begin(115200);
+  
   // Initialize servo
-  myservo.attach(dongcoservo);
+  ESP32PWM::allocateTimer(0);
+  ESP32PWM::allocateTimer(1);
+  ESP32PWM::allocateTimer(2);
+  ESP32PWM::allocateTimer(3);
+  myservo.setPeriodHertz(50);  // Tiêu chuẩn 50Hz servo
+  myservo.attach(dongcoservo, 500, 2400); // Thiết lập các thông số min/max pulse width
   
   // Initialize pins
   pinMode(trig, OUTPUT);
@@ -87,11 +98,11 @@ void setup() {
   // Khởi tạo thời gian hoạt động
   lastActivityTime = xTaskGetTickCount() * portTICK_PERIOD_MS;
   
-  // Create tasks
+  // Create tasks - Điều chỉnh kích thước stack cho ESP32
   xTaskCreate(
     TaskSense,  // Task function
     "Sense",    // Task name
-    128,        // Stack size
+    2048,       // Stack size (tăng kích thước cho ESP32)
     NULL,       // Parameters
     2,          // Priority (higher number = higher priority)
     &TaskSenseHandle);
@@ -99,7 +110,7 @@ void setup() {
   xTaskCreate(
     TaskMovement,
     "Movement",
-    128,
+    2048,       // Tăng kích thước stack
     NULL,
     1,
     &TaskMovementHandle);
@@ -107,17 +118,18 @@ void setup() {
   xTaskCreate(
     TaskPowerManagement,
     "PowerMgmt",
-    128,
+    2048,       // Tăng kích thước stack
     NULL,
-    3, // Ưu tiên cao nhất để có thể tạm dừng/tiếp tục các task khác
+    3,         // Ưu tiên cao nhất để có thể tạm dừng/tiếp tục các task khác
     &TaskPowerManagementHandle);
     
-  // Start the scheduler
-  vTaskStartScheduler();
+  // FreeRTOS scheduler sẽ tự động chạy sau khi setup() hoàn thành
+  Serial.println("Setup complete");
 }
 
 void loop() {
   // Empty. Things are done in Tasks.
+  vTaskDelay(1000 / portTICK_PERIOD_MS); // Để ngăn WDT reset
 }
 
 // Task quản lý năng lượng
@@ -137,6 +149,7 @@ void TaskPowerManagement(void *pvParameters) {
       if (!isLowPowerMode && (currentTime - lastActivityTime > INACTIVITY_TIMEOUT)) {
         // Không có hoạt động trong thời gian dài -> chuyển sang chế độ tiết kiệm năng lượng
         isLowPowerMode = true;
+        Serial.println("Entering low power mode");
         
         // Tạm dừng các task không cần thiết
         vTaskSuspend(TaskMovementHandle);
@@ -152,6 +165,7 @@ void TaskPowerManagement(void *pvParameters) {
         // Có vật cản được phát hiện khi đang ở chế độ tiết kiệm -> trở lại chế độ hoạt động
         isLowPowerMode = false;
         lastActivityTime = currentTime;
+        Serial.println("Exiting low power mode");
         
         // Tiếp tục các task đã tạm dừng
         vTaskResume(TaskMovementHandle);
@@ -295,23 +309,44 @@ void TaskMovement(void *pvParameters) {
   }
 }
 
-// Các chức năng tiết kiệm năng lượng
+// Các chức năng tiết kiệm năng lượng cho ESP32
 void enterLowPowerMode() {
-  // Tắt các chức năng không cần thiết
-  resetdongco(); // Tắt động cơ
-  power_adc_disable(); // Tắt ADC nếu không cần
+  // Cấu hình quản lý năng lượng ESP32
+  esp_pm_config_esp32_t pm_config = {
+    .max_freq_mhz = 80,       // Giảm tần số CPU xuống 80MHz
+    .min_freq_mhz = 40,       // Cho phép CPU giảm xuống 40MHz khi idle
+    .light_sleep_enable = true // Cho phép light sleep
+  };
   
-  // Có thể thêm các lệnh tắt các ngoại vi khác tùy thuộc vào phần cứng
+  esp_pm_configure(&pm_config);
   
-  // Lưu ý: Không tắt các chức năng mà FreeRTOS cần để hoạt động
-  // Không gọi sleep_mode() vì sẽ làm FreeRTOS ngừng hoạt động
+  // Tắt Wi-Fi và Bluetooth nếu không cần thiết
+  // esp_wifi_stop();
+  // esp_bt_controller_disable();
+  
+  // Tắt ADC
+  adc_power_off();
+  
+  // Tắt động cơ
+  resetdongco();
 }
 
 void exitLowPowerMode() {
-  // Bật lại các chức năng đã tắt
-  power_adc_enable(); // Bật ADC
+  // Cấu hình lại quản lý năng lượng cho hiệu suất
+  esp_pm_config_esp32_t pm_config = {
+    .max_freq_mhz = 240,       // Tốc độ tối đa cho ESP32
+    .min_freq_mhz = 80,        // Tốc độ tối thiểu cao hơn
+    .light_sleep_enable = false // Tắt light sleep
+  };
   
-  // Có thể thêm các lệnh bật lại các ngoại vi khác
+  esp_pm_configure(&pm_config);
+  
+  // Bật lại ADC
+  adc_power_on();
+  
+  // Bật lại Wi-Fi và Bluetooth nếu cần
+  // esp_wifi_start();
+  // esp_bt_controller_enable(ESP_BT_MODE_BTDM);
 }
 
 void updateActivityStatus() {

@@ -1,117 +1,170 @@
-#include <Arduino.h>
+#include <Servo.h>
+Servo myservo;  // create servo object to control a servo
+int pos = 0;    // variable to store the servo position
 
-const int trigPin = 2;
-const int echoPin = 3;
-const int motorPin = 4;
 
-// Define motor control pins (replace with your actual pins)
-const int inR1 = 5;
-const int inR2 = 6;
-const int inL1 = 7;
-const int inL2 = 8;
+const int trig = 6;  
+const int echo = 5;    
+int tien1 = 10;       
+int tien2 = 11;        
+int lui1 = 12;        
+int lui2 = 13;        
+int dongcoservo = 9;   
 
-// Define distance threshold
-const int allowDistance = 10; // cm
+int gioihan = 25;//khoảng cách nhận biết vật 
+int i;
+int x = 0;
+unsigned long thoigian; 
+int khoangcach;          
+int khoangcachtrai, khoangcachphai;
+int maxspeed=30;
 
-// Function to control the robot's movement
-void robotMover(int inR1, int inR2, int inL1, int inL2, int direction) {
-  switch (direction) {
-    case 1: // Forward
-      digitalWrite(inR1, HIGH);
-      digitalWrite(inR2, LOW);
-      digitalWrite(inL1, HIGH);
-      digitalWrite(inL2, LOW);
-      break;
-    case 2: // Backward
-      digitalWrite(inR1, LOW);
-      digitalWrite(inR2, HIGH);
-      digitalWrite(inL1, LOW);
-      digitalWrite(inL2, HIGH);
-      break;
-    case 0: // Stop
-      digitalWrite(inR1, LOW);
-      digitalWrite(inR2, LOW);
-      digitalWrite(inL1, LOW);
-      digitalWrite(inL2, LOW);
-      break;
-    default: // Stop (default case)
-      digitalWrite(inR1, LOW);
-      digitalWrite(inR2, LOW);
-      digitalWrite(inL1, LOW);
-      digitalWrite(inL2, LOW);
-      break;
-  }
-}
-
-// Function to measure distance using ultrasonic sensor
-long objectDistance_cm(int angle) {  // Added angle parameter for potential future use
-  long duration, distance;
-  digitalWrite(trigPin, LOW);
-  delayMicroseconds(2);
-  digitalWrite(trigPin, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(trigPin, LOW);
-  duration = pulseIn(echoPin, HIGH);
-  distance = duration * 0.034 / 2;
-  return distance;
-}
-
+void dokhoangcach();
+void dithang(int duongdi);
+void disangtrai();
+void disangphai();
+void dilui();
+void resetdongco();
+void quaycbsangphai();
+void quaycbsangtrai();
 void setup() {
-  Serial.begin(9600);
-  pinMode(trigPin, OUTPUT);
-  pinMode(echoPin, INPUT);
-  pinMode(motorPin, OUTPUT);
+  // put your setup code here, to run once:
+  myservo.attach(9); 
+  pinMode(trig, OUTPUT);
+  pinMode(echo, INPUT);   
 
-  // Set motor control pins as outputs
-  pinMode(inR1, OUTPUT);
-  pinMode(inR2, OUTPUT);
-  pinMode(inL1, OUTPUT);
-  pinMode(inL2, OUTPUT);
+  pinMode(tien1, OUTPUT);
+  pinMode(tien2, OUTPUT);
+  pinMode(lui1, OUTPUT);
+  pinMode(lui2, OUTPUT);
+  digitalWrite(tien1, LOW);
+  digitalWrite(tien2, LOW);
+  digitalWrite(lui1, LOW);
+  digitalWrite(lui1, LOW);
+  myservo.write(90);
+  delay(500);
+
+
+
 }
 
-void loop() {
-  long front_distance = objectDistance_cm(0); // Measure front distance
-
-  // Obstacle avoidance logic using the single front sensor
-  if (front_distance < allowDistance) {
-    robotMover(inR1, inR2, inL1, inL2, 2); // Move backward
-    Serial.println("Lùi");
-    delay(300);
-    robotMover(inR1, inR2, inL1, inL2, 0); // Stop
-    delay(100); // Small delay before turning
-
-    long left_distance = objectDistance_cm(180); // Measure left distance
-    long right_distance = objectDistance_cm(0); // Measure right distance
-
-    if (left_distance > right_distance) {
-      // Turn left (replace with your turning logic)
-      // Example:
-      digitalWrite(inR1, LOW);
-      digitalWrite(inR2, HIGH);
-      digitalWrite(inL1, HIGH);
-      digitalWrite(inL2, LOW);
-      delay(500); // Adjust turning time
-      robotMover(inR1, inR2, inL1, inL2, 0); // Stop
-    } else {
-      // Turn right (replace with your turning logic)
-      // Example:
-      digitalWrite(inR1, HIGH);
-      digitalWrite(inR2, LOW);
-      digitalWrite(inL1, LOW);
-      digitalWrite(inL2, HIGH);
-      delay(500); // Adjust turning time
-      robotMover(inR1, inR2, inL1, inL2, 0); // Stop
+void loop()
+{
+  khoangcach = 0;
+  dokhoangcach();
+  if (khoangcach > gioihan || khoangcach == 0)
+  {
+      dithang();
+  }
+  else
+  {
+    resetdongco();
+    quaycbsangtrai();
+    dokhoangcach();
+    khoangcachtrai = khoangcach;
+    quaycbsangphai();
+    dokhoangcach();
+    khoangcachphai = khoangcach;
+    if (khoangcachphai < 30 && khoangcachtrai < 30) {
+      dilui();
     }
-  } else {
-    robotMover(inR1, inR2, inL1, inL2, 1); // Move forward
-    Serial.println("Tiến");
+    else
+    {
+      if (khoangcachphai >= khoangcachtrai)
+      {        
+        disangphai();
+        delay(500);
+      }
+      if (khoangcachphai < khoangcachtrai)
+      {
+        disangtrai();
+        delay(500);
+      }
+    }
   }
 
-  Serial.print("front: ");
-  Serial.println(front_distance);
-  //Serial.print("left: ");
-  //Serial.println(left_distance);
-  //Serial.print("right: ");
-  //Serial.println(right_distance);
-  delay(10);
+}
+void dithang()
+{
+
+  digitalWrite(tien1, HIGH);
+  digitalWrite(tien2, HIGH);
+
+
+}
+
+void disangphai()
+{
+  resetdongco();
+  digitalWrite(lui1, HIGH);
+  delay(2000);//thời gian lùi
+  digitalWrite(lui1, LOW);
+
+
+}
+void disangtrai()
+{
+  resetdongco();
+  digitalWrite(lui2, HIGH);
+  delay(2000);//thời gian 
+  digitalWrite(lui2, LOW);
+
+}
+
+void dilui()
+{
+  resetdongco();
+  for (i = 0; i < 20; i++)
+  digitalWrite(lui1, HIGH);
+  digitalWrite(lui2, HIGH);
+  delay(2000);
+
+
+  digitalWrite(lui1, LOW);
+  digitalWrite(lui2, LOW);
+}
+
+void resetdongco()
+{
+  digitalWrite(tien1, LOW);
+  digitalWrite(tien2, LOW);
+  digitalWrite(lui1, LOW);
+  digitalWrite(lui2, LOW);
+}
+
+void dokhoangcach()
+{
+
+  digitalWrite(trig, LOW); 
+  delayMicroseconds(2);
+  digitalWrite(trig, HIGH);  
+  delayMicroseconds(10); 
+  digitalWrite(trig, LOW); 
+
+
+  // Đo độ rộng xung HIGH ở chân echo.
+  thoigian = pulseIn(echo, HIGH);
+
+  khoangcach = thoigian / 2 / 29.412;
+
+}
+
+
+void quaycbsangtrai()
+{
+  myservo.write(180);              // tell servo to go to position in variable 'pos'
+  delay(1000);
+  dokhoangcach();
+  myservo.write(90);              // tell servo to go to position in variable 'pos'
+}
+void quaycbsangphai()
+{
+  myservo.write(0);              // tell servo to go to position in variable 'pos'
+  delay(1000);
+  dokhoangcach();
+  myservo.write(90);              // tell servo to go to position in variable 'pos'
+}
+void resetservo()
+{
+  myservo.write(90);
 }

@@ -8,11 +8,10 @@
 #include <BlynkSimpleEsp32.h>
 
 // Thông tin WiFi và Blynk
-char auth[] = BLYNK_AUTH_TOKEN;    // Sử dụng token đã định nghĩa ở trên
-char ssid[] = "YOUR_WIFI_SSID";    // Thay đổi thành tên WiFi của bạn
-char pass[] = "YOUR_WIFI_PASSWORD"; // Thay đổi thành mật khẩu WiFi của bạn
+char auth[] = BLYNK_AUTH_TOKEN;    
+char ssid[] = "YOUR_WIFI_SSID";    // Thay đổi thành tên WiFi 
+char pass[] = "YOUR_WIFI_PASSWORD"; // Thay đổi thành mật khẩu WiFi 
 
-// PINS & CONSTANTS FOR OBSTACLE AVOIDANCE ROBOT
 Servo myservo;  // Tạo đối tượng servo
 
 // Chân kết nối cảm biến siêu âm

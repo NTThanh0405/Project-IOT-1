@@ -8,10 +8,11 @@
 #include <BlynkSimpleEsp32.h>
 
 // Thông tin WiFi và Blynk
-char auth[] = BLYNK_AUTH_TOKEN;    
-char ssid[] = "YOUR_WIFI_SSID";    // Thay đổi thành tên WiFi 
-char pass[] = "YOUR_WIFI_PASSWORD"; // Thay đổi thành mật khẩu WiFi 
+char auth[] = BLYNK_AUTH_TOKEN;    // Sử dụng token đã định nghĩa ở trên
+char ssid[] = "POCO 2G";    // Thay đổi thành tên WiFi của bạn
+char pass[] = "tu0dentam"; // Thay đổi thành mật khẩu WiFi của bạn
 
+// PINS & CONSTANTS FOR OBSTACLE AVOIDANCE ROBOT
 Servo myservo;  // Tạo đối tượng servo
 
 // Chân kết nối cảm biến siêu âm
@@ -54,8 +55,9 @@ const long intervalSensors = 2000; // Thời gian giữa các lần đọc cảm
 const long intervalBlynk = 1000;   // Thời gian giữa các lần gửi dữ liệu lên Blynk (ms)
 
 // Ngưỡng cảnh báo
-const float TEMP_THRESHOLD = 70.0;  // Ngưỡng nhiệt độ cảnh báo (°C)
-const int GAS_THRESHOLD = 700;      // Ngưỡng khí gas cảnh báo
+const float TEMP_THRESHOLD = 45.0;  // Ngưỡng nhiệt độ cảnh báo (°C)
+const int GAS_THRESHOLD = 550;      // Ngưỡng khí gas cảnh báo
+const float HUMIDITY_THRESHOLD = 45.0; // Ngưỡng độ ẩm cảnh báo (%)
 
 // Biến lưu trữ trạng thái
 bool systemState = false;           // Trạng thái hệ thống (bật/tắt từ V1)
@@ -75,7 +77,7 @@ void resetservo();
 // Khai báo các hàm cho cảm biến môi trường
 void readEnvironmentalSensors();
 void sendDataToBlynk();
-void checkThresholds(float temperature, int gasValue);
+void checkThresholds(float temperature, int gasValue, float humidity);
 
 // Hàm callback khi nhận dữ liệu từ Blynk
 BLYNK_WRITE(V1) {
@@ -308,6 +310,9 @@ void readEnvironmentalSensors() {
     
     // Gửi dữ liệu nhiệt độ lên Blynk (V0)
     Blynk.virtualWrite(V0, t);
+    
+    // Gửi dữ liệu độ ẩm lên Blynk (V6)
+    Blynk.virtualWrite(V5, h);
   }
 
   // Đọc dữ liệu từ cảm biến MQ2 (Analog Output - A0)
@@ -319,19 +324,29 @@ void readEnvironmentalSensors() {
   Blynk.virtualWrite(V3, mq2_value_a0);
   
   // Kiểm tra ngưỡng cảnh báo
-  checkThresholds(t, mq2_value_a0);
+  checkThresholds(t, mq2_value_a0, h);
   
   Serial.println("[CẢM BIẾN] --------------------------------");
 }
 
 // Hàm kiểm tra ngưỡng cảnh báo
-void checkThresholds(float temperature, int gasValue) {
-  // Kiểm tra nếu nhiệt độ và giá trị khí gas vượt ngưỡng
-  if (temperature > TEMP_THRESHOLD && gasValue > GAS_THRESHOLD) {
+void checkThresholds(float temperature, int gasValue, float humidity) {
+  // Kiểm tra nếu nhiệt độ, khí gas, hoặc độ ẩm vượt ngưỡng
+  if (temperature > TEMP_THRESHOLD || gasValue > GAS_THRESHOLD || humidity > HUMIDITY_THRESHOLD) {
     // Bật cảnh báo
     alarmState = true;
     Blynk.virtualWrite(V4, 1);  // Bật đèn cảnh báo trên Blynk
-    Serial.println("[CẢNH BÁO] Nhiệt độ và khí gas vượt ngưỡng! ĐÈN CẢNH BÁO BẬT");
+    
+    // In thông báo cảnh báo cụ thể
+    if (temperature > TEMP_THRESHOLD) {
+      Serial.println("[CẢNH BÁO] Nhiệt độ vượt ngưỡng! ĐÈN CẢNH BÁO BẬT");
+    }
+    if (gasValue > GAS_THRESHOLD) {
+      Serial.println("[CẢNH BÁO] Khí gas vượt ngưỡng! ĐÈN CẢNH BÁO BẬT");
+    }
+    if (humidity > HUMIDITY_THRESHOLD) {
+      Serial.println("[CẢNH BÁO] Độ ẩm vượt ngưỡng! ĐÈN CẢNH BÁO BẬT");
+    }
   } else {
     // Tắt cảnh báo
     alarmState = false;
@@ -352,13 +367,16 @@ void sendDataToBlynk() {
   if (!isnan(h) && !isnan(t)) {
     // Gửi dữ liệu nhiệt độ lên Blynk (V0)
     Blynk.virtualWrite(V0, t);
+    
+    // Gửi dữ liệu độ ẩm lên Blynk (V5)
+    Blynk.virtualWrite(V5, h);
   }
   
   // Gửi dữ liệu khí gas lên Blynk (V3)
   Blynk.virtualWrite(V3, mq2_value_a0);
   
   // Kiểm tra ngưỡng cảnh báo
-  checkThresholds(t, mq2_value_a0);
+  checkThresholds(t, mq2_value_a0, h);
   
   // Gửi trạng thái kết nối lên V2 (LED báo kết nối)
   Blynk.virtualWrite(V2, 1);
